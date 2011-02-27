@@ -1,0 +1,345 @@
+<!DOCTYPE html> 
+<html lang="en"> 
+<head> 
+<meta charset=utf-8 /> 
+<title>MonkeyType</title> 
+<style type="text/css"> 
+body {
+    background-color: #F2EDC4;
+    color: #7A674F;
+}
+#text {
+    float: left;
+    margin: 10px 20px 10px 10px;
+    height: 590px;
+    width: 600px;
+    font-family: times, serif;
+    font-size: 18px;
+}
+#stats {
+    font-size: 30px;
+}
+#timer {
+    font-size: 60px;
+}
+#footer {
+    clear: both;
+}
+.start-stop-button {
+    font-size: 18px;
+    padding: 8px 60px;
+}
+.text-align-right {
+    text-align: right;
+}
+.display-none {
+    display: none;
+}
+.display-inline {
+    display: 
+}
+.background-color-green {
+    background-color: #CED452;
+}
+.background-color-red {
+    background-color: #F8CD9F;
+}
+</style> 
+<script src="http://code.jquery.com/jquery-1.5.min.js"></script> 
+<script> 
+/*
+TODO:
+  * on countdown, make sure all activity stops at 0, not -1
+  * 10 second inactivity warning
+  * 10 seconds left on timer warning
+*/
+ 
+var interval = 0;
+var seconds = 0;
+var firstKeyup = true;
+var timerType = 'countup'; // options are "countup" and "countdown"
+ 
+/**
+ * Get the word count for the provided text.
+ * @param {String} text
+ * @return {Number}
+ */
+function getWordCount(text) {
+    // Set word count by filtering tokens that don't contain word characters.
+    var tokens = text.split(/\s+/);
+    var words = $.grep(tokens, function(value) {
+        return value.match(/\w/);
+    });
+    return words.length;
+}
+ 
+/**
+ * Get the percentage of progress towards the word count goal.
+ * @param {int} wordCount
+ * @return {Number}
+ */
+function getWordCountPercent(wordCount) {
+    var wordCountGoal = parseInt($('#word-count-goal').val());
+    var percent = Math.floor((wordCount / wordCountGoal) * 100);
+    return percent;
+}
+ 
+/**
+ * Get the words per minute for the provided word count, given the number of 
+ * seconds since the first keyup.
+ * @param {Number} wordCount
+ * @return {Number}
+ */
+function getWordsPerMinute(wordCount) {
+    if ('countup' == timerType) {
+        var wordsPerMinute = Math.round(wordCount / (seconds / 60));
+    } else if ('countdown' == timerType) {
+        // Freeze words per minute once timer gets to 00:00:00.
+        if (1 == seconds) {
+            var wordsPerMinute = parseInt($('#stat-words-per-minute').text());
+        } else {
+            var countdownMinutes = parseInt($('#timer-type-countdown-minutes').val());
+            var secondsPassed = (countdownMinutes * 60) - seconds;
+            var wordsPerMinute = Math.round(wordCount / (secondsPassed / 60));
+        }
+    }
+    return wordsPerMinute;
+}
+ 
+/**
+ * Get the words remaining based on the word count goal.
+ * @param {Number} wordCount
+ * @return {Number}
+ */
+function getWordsRemaining(wordCount) {
+    var wordCountGoal = parseInt($('#word-count-goal').val());
+    var wordsRemaining = wordCount >= wordCountGoal ? 0 : wordCountGoal - wordCount;
+    return wordsRemaining;
+}
+ 
+/**
+ * Set the timer on the page.
+ * @param {Number} second
+ * @param {Number} minute
+ * @param {Number} hour
+ */
+function setTimer() {
+    var hour = Math.floor(seconds / 3600);
+    var minute = Math.floor(seconds / 60);
+    var second = Math.floor(seconds - (minute * 60));
+    
+    $('#timer-second').text('0'.substring(9 < second) + second);
+    $('#timer-minute').text('0'.substring(9 < minute) + minute);
+    $('#timer-hour').text('0'.substring(9 < hour) + hour);
+}
+ 
+/**
+ * Set the intitial countdown timer.
+ */
+function setTimerCountdown() {
+    var countdownMinutes = $('#timer-type-countdown-minutes').val();
+    seconds = countdownMinutes * 60;
+    setTimer();
+}
+ 
+/**
+ * Set the initial countup timer.
+ */
+function setTimerCountup() {
+    setTimer();
+}
+ 
+/**
+ * Start the timer according to its type.
+ */
+function timerStart() {
+    interval = setInterval(function() {
+        
+        // Increment or decrement the seconds depending on the timer type.
+        'countup' == timerType ? seconds++ : seconds--;
+        setTimer();
+        
+        // For countdown, stop the timer once it gets to 00:00:00.
+        if (0 == seconds) {
+            timerStop();
+            $('#timer-stop').attr('disabled', 'disabled');
+            $('#text').addClass('background-color-red');
+        }
+    }, 1000);
+}
+ 
+/**
+ * Stop the timer.
+ */
+function timerStop() {
+    clearInterval(interval);
+    interval = 0;
+}
+ 
+/**
+ * Bind event handlers when document is ready.
+ */
+$(document).ready(function() {
+    
+    // Set defaults.
+    $('#text').val('');
+    $('#text').removeAttr('disabled');
+    $('#word-count-goal').val(0);
+    $('#timer-type-countdown-minutes').val(0);
+    $('#timer-type-countdown').removeAttr('checked');
+    $('#timer-type-countup').attr('checked', 'checked');
+    $('#timer-stop').removeAttr('disabled');
+    $('.timer-type-countdown-increment').attr('disabled', 'disabled');
+    
+    // When writing in the textarea.
+    $('#text').keyup(function(e) {
+        
+        // Start timer on first keyup.
+        if (firstKeyup) {
+            $('#timer-controls').removeClass('display-none').addClass('display-inline');
+            $('#config-controls').addClass('display-none');
+            
+            // Consider a 0-minute countdown a countup.
+            if (0 == $('#timer-type-countdown-minutes').val()) {
+                timerType = 'countup';
+            }
+            
+            timerStart();
+            firstKeyup = false;
+        }
+        
+        // Get the text.
+        var text = $(this).val();
+        
+        // Set word count.
+        var wordCount = getWordCount(text);
+        
+        // Set words per minute.
+        var wordsPerMinute = getWordsPerMinute(wordCount);
+        
+        // Set word count percent.
+        var wordCountPercent = getWordCountPercent(wordCount);
+        
+        // Set words remaining.
+        var wordsRemaining = getWordsRemaining(wordCount);
+        
+        // Change the background color to green if the word cound goal has been 
+        // reached and the timer is not 00:00:00.
+        if (0 == wordsRemaining 
+         && 0 < $('#word-count-goal').val() 
+         && 0 < seconds) {
+            $(this).addClass('background-color-green');
+        }
+        
+        $('#stat-word-count').text(wordCount);
+        $('#stat-words-per-minute').text(wordsPerMinute);
+        $('#stat-word-count-percent').text(wordCountPercent);
+        $('#stat-words-remaining').text(wordsRemaining);
+    });
+    
+    // When clicking the "Start Timer" button.
+    $('#timer-start').click(function() {
+        $('#text').removeAttr('disabled');
+        $(this).removeClass('display-inline').addClass('display-none');
+        $('#timer-stop').removeClass('display-none').addClass('display-inline');
+        timerStart();
+        firstKeyup = false;
+    });
+    
+    // When clicking the "Stop Timer" button.
+    $('#timer-stop').click(function() {
+        $('#text').attr('disabled', 'disabled');
+        $(this).removeClass('display-inline').addClass('display-none');
+        $('#timer-start').removeClass('display-none').addClass('display-inline');
+        timerStop();
+    });
+    
+    // When clicking the "Reset All" button.
+    $('#reset-all').click(function() {
+        var confirmMessage = 'THIS WILL DELETE YOUR TEXT! Are you sure you want to start another session?'
+        if (window.confirm(confirmMessage)) {
+            location.reload();
+        }
+    });
+    
+    // When changing the "Count up"/"Countdown" radio buttons.
+    $('input[name="timer-type"]').change(function() {
+        timerType = $(this).val();
+        if ('countup' == timerType) {
+            $('.timer-type-countdown-increment').attr('disabled', 'disabled');
+            setTimerCountup();
+        } else if ('countdown' == timerType) {
+            $('.timer-type-countdown-increment').removeAttr('disabled');
+            setTimerCountdown();
+        }
+    });
+    
+    // When clicking the "Countdown" timer type increment buttons.
+    $('.timer-type-countdown-increment').click(function() {
+        var minutes = parseInt($('#timer-type-countdown-minutes').val());
+        var increment = parseInt($(this).val());
+        minutes = increment ? minutes + increment : 0;
+        $('#timer-type-countdown-minutes').val(minutes);
+        setTimerCountdown();
+    });
+    
+    // When clicking the word count goal increment buttons.
+    $('.word-count-goal-increment').click(function() {
+        var goal = parseInt($('#word-count-goal').val());
+        var increment = parseInt($(this).val());
+        goal = increment ? goal + increment : 0;
+        $('#word-count-goal').val(goal);
+        $('#stat-word-count-goal').text(goal);
+        $('#stat-words-remaining').text(goal);
+    });
+});
+</script> 
+</head> 
+<body> 
+<textarea id="text"></textarea> 
+<div id="sidebar"> 
+    <div id="stats"> 
+        <div><span id="stat-word-count">0</span> / <span id="stat-word-count-goal">0</span> words (<span id="stat-word-count-percent">0</span>%)</div> 
+        <div><span id="stat-words-remaining">0</span> words remaining</div> 
+        <div><span id="stat-words-per-minute">0</span> words per minute</div> 
+    </div> 
+    <div id="timer"> 
+        <span id="timer-hour">00</span>:<span id="timer-minute">00</span>:<span id="timer-second">00</span> 
+    </div> 
+    <div id="timer-controls" class="display-none"> 
+        <button id="timer-start" class="start-stop-button display-none">Start Timer</button> 
+        <button id="timer-stop" class="start-stop-button">Stop Timer</button> 
+        <p>Green means you've reached your goal.</p> 
+        <p>Red means you've run out of time.</p> 
+        <p>Click <button id="reset-all">Reset All</button> to start another session.</p> 
+    </div> 
+    <div id="config-controls"> 
+        <h2>Welcome to <i>MonkeyType</i>!</h2> 
+        <h2>Just start typing! Or...</h2> 
+        <p>Set your word count goal...</p> 
+        <input type="text" size="4" id="word-count-goal" class="text-align-right" value="0" disabled="disabled" /> words
+        <div> 
+            <button class="word-count-goal-increment" value="25">+25</button> 
+            <button class="word-count-goal-increment" value="50">+50</button> 
+            <button class="word-count-goal-increment" value="100">+100</button> 
+            <button class="word-count-goal-increment" value="250">+250</button> 
+            <button class="word-count-goal-increment" value="0">0</button> 
+        </div> 
+        <p>Now choose your timer...</p> 
+        <input type="radio" id="timer-type-countup" name="timer-type" value="countup" /> Count up<br /> 
+        <input type="radio" id="timer-type-countdown" name="timer-type" value="countdown" /> Countdown for 
+        <input type="text" size="2" id="timer-type-countdown-minutes" class="text-align-right" value="0" disabled="disabled" /> minutes
+        <div> 
+            <button class="timer-type-countdown-increment" value="1">+1</button> 
+            <button class="timer-type-countdown-increment" value="5">+5</button> 
+            <button class="timer-type-countdown-increment" value="10">+10</button> 
+            <button class="timer-type-countdown-increment" value="0">0</button> 
+        </div> 
+        <p>The timer will start once you start typing!</p> 
+    </div> 
+    <div id="footer"> 
+        <p>&copy;2011 <i>MonkeyType</i> is a speed writing tool for simian writers.</p> 
+    </div> 
+</div> 
+</body> 
+</html>
